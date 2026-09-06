@@ -123,7 +123,7 @@ create policy "active users create their profile" on public.profiles for insert 
 
 drop policy if exists "profiles are discoverable" on public.profiles;
 drop policy if exists "active users discover profiles" on public.profiles;
-create policy "active users discover profiles" on public.profiles for select to authenticated using (public.is_active_user(auth.uid()));
+create policy "profiles are discoverable" on public.profiles for select to authenticated using (true);
 
 drop policy if exists "users update their profile" on public.profiles;
 drop policy if exists "active users update their profile" on public.profiles;
