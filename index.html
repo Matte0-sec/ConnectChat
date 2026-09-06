@@ -20,11 +20,11 @@
     </section>
     <section class="auth-panel">
       <form id="loginForm" class="auth-form">
-        <p class="eyebrow">DEIN LOKALES PROFIL</p><h2>Wie heisst du?</h2>
+        <p class="eyebrow">DEIN PROFIL</p><h2>Wie heisst du?</h2>
         <label>Benutzername<input id="loginUsername" autocomplete="nickname" required pattern="[A-Za-z0-9_. -]{3,30}" placeholder="z. B. Alex Meyer"></label>
         <label>Status<input id="loginStatus" maxlength="120" placeholder="Bereit fuer neue Ideen"></label>
         <button class="primary-button" type="submit">ConnectChat oeffnen <i data-lucide="arrow-right"></i></button>
-        <p class="form-switch">Dein Name wird nur in diesem Browser gespeichert.</p>
+        <p class="form-switch">Waehle einen eindeutigen Namen fuer ConnectChat.</p>
       </form>
     </section>
   </main>
@@ -42,7 +42,7 @@
     </aside>
     <section class="content-column">
       <div id="chatsView" class="content-view"><header class="view-header"><div><p class="eyebrow">DEIN POSTEINGANG</p><h2>Nachrichten</h2></div><button id="newChatButton" class="icon-button accent" title="Neue Unterhaltung" aria-label="Neue Unterhaltung"><i data-lucide="square-pen"></i></button></header><div id="conversationList" class="conversation-list"></div></div>
-      <div id="peopleView" class="content-view hidden"><header class="view-header"><div><p class="eyebrow">LOKALE KONTAKTE</p><h2>Unterhaltung beginnen</h2></div></header><label class="search-box"><i data-lucide="search"></i><input id="userSearch" type="search" placeholder="Name fuer neuen Chat eingeben" autocomplete="off"></label><div id="searchResults" class="person-list empty-state">Gib einen Namen ein, um eine lokale Unterhaltung anzulegen.</div></div>
+      <div id="peopleView" class="content-view hidden"><header class="view-header"><div><p class="eyebrow">VERBINDUNGEN</p><h2>Personen finden</h2></div></header><label class="search-box"><i data-lucide="search"></i><input id="userSearch" type="search" placeholder="Nach Benutzername suchen" autocomplete="off"></label><div id="searchResults" class="person-list empty-state">Suche nach einer Person, um einen privaten Chat zu starten.</div></div>
       <div id="groupsView" class="content-view hidden"><header class="view-header"><div><p class="eyebrow">GEMEINSCHAFTEN</p><h2>Gruppen</h2></div><button id="createGroupButton" class="icon-button accent" title="Gruppe erstellen" aria-label="Gruppe erstellen"><i data-lucide="plus"></i></button></header><div id="groupList" class="group-list"></div></div>
     </section>
     <section class="chat-pane">
@@ -56,6 +56,6 @@
   <dialog id="manageDialog" class="modal"><div class="modal-content manage-content"><div class="modal-heading"><div><p class="eyebrow">GRUPPENVERWALTUNG</p><h2 id="manageTitle">Gruppe verwalten</h2></div><button type="button" class="icon-button close-modal" aria-label="Schliessen"><i data-lucide="x"></i></button></div><form id="editGroupForm"><label>Gruppenname<input id="editGroupName" required minlength="3" maxlength="80"></label><label>Beschreibung<textarea id="editGroupDescription" maxlength="500"></textarea></label><button class="ghost-button" type="submit">Aenderungen speichern</button></form><section><h3>Offene Anfragen</h3><div id="requestList" class="manage-list"></div></section><section><h3>Mitglieder</h3><div id="memberList" class="manage-list"></div></section><button id="deleteGroupButton" class="danger-button" type="button">Gruppe loeschen</button></div></dialog>
   <div id="toast" class="toast" role="status"></div>
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-  <script src="script.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>
