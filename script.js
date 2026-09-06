@@ -10,7 +10,7 @@ const app = $("#appView");
 function refreshIcons() { window.lucide?.createIcons(); }
 function escapeHtml(value = "") { const node = document.createElement("div"); node.textContent = value; return node.innerHTML; }
 function initials(name = "?") { return name.split(/[._ -]/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase(); }
-function profileFromRow(row) { return { id: row.id, username: row.username, status: row.status || "", profileImage: row.profile_image || "" }; }
+function profileFromRow(row) { return { id: row.id, username: row.username, status: row.status || "", profileImage: row.profile_image || "", role: row.role || "user", isBlocked: Boolean(row.is_blocked) }; }
 function avatar(user, size = "") { return user.profileImage ? `<img class="avatar ${size}" src="${user.profileImage}" alt="">` : `<span class="avatar ${size}">${escapeHtml(initials(user.username || user.name))}</span>`; }
 function displayTime(value) { if (!value) return ""; const date = new Date(value); return date.toDateString() === new Date().toDateString() ? date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }); }
 function toast(message) { const element = $("#toast"); element.textContent = message; element.classList.add("visible"); clearTimeout(window.toastTimeout); window.toastTimeout = setTimeout(() => element.classList.remove("visible"), 3600); }
@@ -32,7 +32,8 @@ function showSetup() {
   $("#loginUsername").focus();
 }
 function renderProfile() {
-  $("#ownProfile").innerHTML = `${avatar(state.me, "large")}<div class="profile-copy"><strong>${escapeHtml(state.me.username)}</strong><span>${escapeHtml(state.me.status || "Online")}</span></div>`;
+  $("#ownProfile").innerHTML = `${avatar(state.me, "large")}<div class="profile-copy"><strong>${escapeHtml(state.me.username)}</strong><span>${escapeHtml(state.me.role === "site_admin" ? "Systemadmin" : state.me.status || "Online")}</span></div>`;
+  $("#adminButton").classList.toggle("hidden", state.me.role !== "site_admin");
 }
 function showView(view) {
   document.querySelectorAll(".content-view").forEach((node) => node.classList.add("hidden"));
@@ -46,8 +47,13 @@ function showLoadError(error) { toast(readableError(error)); }
 async function boot() {
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session) return showSetup();
-  const row = requireSuccess(await supabase.from("profiles").select("id,username,status,profile_image").eq("id", session.user.id).maybeSingle());
+  const row = requireSuccess(await supabase.from("profiles").select("id,username,status,profile_image,role,is_blocked").eq("id", session.user.id).maybeSingle());
   if (!row) return showSetup();
+  if (row.is_blocked) {
+    await supabase.auth.signOut();
+    showSetup();
+    return toast("Dieses Konto wurde gesperrt.");
+  }
   state.me = profileFromRow(row);
   $("#authView").classList.add("hidden");
   app.classList.remove("hidden");
@@ -70,7 +76,7 @@ async function createProfile(event) {
       session = signedIn.data.session;
     }
     if (!session) throw new Error("Anonyme Anmeldung konnte nicht gestartet werden.");
-    const row = requireSuccess(await supabase.from("profiles").insert({ id: session.user.id, username, status }).select("id,username,status,profile_image").single());
+    const row = requireSuccess(await supabase.from("profiles").insert({ id: session.user.id, username, status }).select("id,username,status,profile_image,role,is_blocked").single());
     state.me = profileFromRow(row);
     $("#authView").classList.add("hidden");
     app.classList.remove("hidden");
@@ -171,9 +177,9 @@ async function openGroup(groupId) {
 
 async function loadMessages() {
   if (!state.active) return;
-  const messages = requireSuccess(await supabase.from("messages").select("id,body,created_at,sender_id,profiles!messages_sender_id_fkey(username)").eq("chat_id", state.active.chatId).order("created_at"));
+  const messages = requireSuccess(await supabase.from("messages").select("id,body,created_at,sender_id,profiles!messages_sender_id_fkey(username,role)").eq("chat_id", state.active.chatId).order("created_at"));
   await supabase.from("chat_members").update({ last_read_at: new Date().toISOString() }).eq("chat_id", state.active.chatId).eq("user_id", state.me.id);
-  renderChat(messages.map((message) => ({ id: message.id, body: message.body, createdAt: message.created_at, senderId: message.sender_id, senderName: message.profiles?.username || "Unbekannt" })));
+  renderChat(messages.map((message) => ({ id: message.id, body: message.body, createdAt: message.created_at, senderId: message.sender_id, senderName: message.profiles?.username || "Unbekannt", senderRole: message.profiles?.role || "user" })));
 }
 function renderChat(messages) {
   const active = state.active;
@@ -182,7 +188,7 @@ function renderChat(messages) {
   const manage = active.kind === "group" && ["owner", "admin"].includes(active.role) ? `<div class="header-tools"><button id="manageGroupButton" class="icon-button" title="Gruppe verwalten" aria-label="Gruppe verwalten"><i data-lucide="settings-2"></i></button></div>` : "";
   $("#chatHeader").innerHTML = `<button id="backButton" class="icon-button back-button" aria-label="Zurueck"><i data-lucide="arrow-left"></i></button>${avatar({ username: active.title, profileImage: active.profileImage }, "large")}<div><strong>${escapeHtml(active.title)}</strong><span>${escapeHtml(active.subtitle)}</span></div>${manage}`;
   const feed = $("#messages");
-  feed.innerHTML = messages.map((message) => `<article class="message ${message.senderId === state.me.id ? "own" : ""}">${active.kind === "group" && message.senderId !== state.me.id ? `<span class="sender">${escapeHtml(message.senderName)}</span>` : ""}<p>${escapeHtml(message.body)}</p><time>${displayTime(message.createdAt)}</time></article>`).join("");
+  feed.innerHTML = messages.map((message) => `<article class="message ${message.senderId === state.me.id ? "own" : ""}">${message.senderId !== state.me.id && (active.kind === "group" || message.senderRole === "site_admin") ? `<span class="sender">${message.senderRole === "site_admin" ? "Admin" : escapeHtml(message.senderName)}</span>` : ""}<p>${escapeHtml(message.body)}</p><time>${displayTime(message.createdAt)}</time></article>`).join("");
   feed.scrollTop = feed.scrollHeight;
   $("#messageInput").disabled = false;
   $("#backButton")?.addEventListener("click", () => app.classList.remove("chat-open"));
@@ -228,7 +234,7 @@ async function saveProfile(event) {
     const image = await imageAsDataUrl($("#profileImage"));
     const update = { status: $("#profileStatus").value.trim() };
     if (image) update.profile_image = image;
-    const row = requireSuccess(await supabase.from("profiles").update(update).eq("id", state.me.id).select("id,username,status,profile_image").single());
+    const row = requireSuccess(await supabase.from("profiles").update(update).eq("id", state.me.id).select("id,username,status,profile_image,role,is_blocked").single());
     state.me = profileFromRow(row);
     renderProfile();
     $("#profileDialog").close();
@@ -236,6 +242,44 @@ async function saveProfile(event) {
   } catch (error) { toast(readableError(error)); }
 }
 function openProfile() { $("#profileUsername").value = state.me.username; $("#profileStatus").value = state.me.status || ""; $("#profileImage").value = ""; $("#profileDialog").showModal(); }
+
+async function openAdmin() {
+  if (state.me.role !== "site_admin") return;
+  $("#adminSearch").value = "";
+  $("#adminDialog").showModal();
+  await searchAdminUsers();
+}
+async function searchAdminUsers() {
+  if (state.me.role !== "site_admin") return;
+  try {
+    const users = requireSuccess(await supabase.rpc("admin_search_users", { search_term: $("#adminSearch").value.trim() }));
+    const container = $("#adminUserList");
+    container.innerHTML = users.length ? users.map((user) => {
+      const isSelf = user.id === state.me.id;
+      const blockButton = !isSelf && user.role !== "site_admin" ? `<button data-block-user="${user.id}" data-blocked="${user.is_blocked}">${user.is_blocked ? "Entsperren" : "Sperren"}</button>` : "";
+      const chatButton = !isSelf && !user.is_blocked ? `<button data-admin-chat="${user.id}">Nachricht</button>` : "";
+      return `<div class="manage-row">${avatar(profileFromRow(user))}<span>${escapeHtml(user.username)} <small>${user.role === "site_admin" ? "Admin" : user.is_blocked ? "Gesperrt" : "Nutzer"}</small></span>${chatButton}${blockButton}</div>`;
+    }).join("") : `<small>Keine Nutzer gefunden.</small>`;
+    container.querySelectorAll("[data-admin-chat]").forEach((button) => button.addEventListener("click", () => adminStartChat(button.dataset.adminChat)));
+    container.querySelectorAll("[data-block-user]").forEach((button) => button.addEventListener("click", () => setBlocked(button.dataset.blockUser, button.dataset.blocked === "true")));
+  } catch (error) { toast(readableError(error)); }
+}
+async function adminStartChat(userId) {
+  try {
+    const chatId = requireSuccess(await supabase.rpc("create_direct_chat", { target_user: userId }));
+    $("#adminDialog").close();
+    await loadConversations();
+    showView("chats");
+    await openChat(chatId);
+  } catch (error) { toast(readableError(error)); }
+}
+async function setBlocked(userId, currentlyBlocked) {
+  try {
+    requireSuccess(await supabase.rpc("set_account_blocked", { target_user: userId, blocked: !currentlyBlocked }));
+    toast(currentlyBlocked ? "Konto wurde entsperrt." : "Konto wurde gesperrt.");
+    await searchAdminUsers();
+  } catch (error) { toast(readableError(error)); }
+}
 
 async function openManagement() {
   const group = state.active;
@@ -273,11 +317,19 @@ async function removeGroup() { if (!state.active || !confirm("Diese Gruppe wirkl
 function connectRealtime() {
   state.channel?.unsubscribe();
   state.channel = supabase.channel("connectchat-live")
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${state.me.id}` }, verifyAccountStatus)
     .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, refreshData)
     .on("postgres_changes", { event: "*", schema: "public", table: "chat_members" }, refreshData)
     .on("postgres_changes", { event: "*", schema: "public", table: "group_members" }, refreshData)
     .on("postgres_changes", { event: "*", schema: "public", table: "join_requests" }, refreshData)
     .subscribe();
+}
+async function verifyAccountStatus() {
+  const row = requireSuccess(await supabase.from("profiles").select("id,username,status,profile_image,role,is_blocked").eq("id", state.me.id).maybeSingle());
+  if (!row?.is_blocked) return;
+  await supabase.auth.signOut();
+  showSetup();
+  toast("Dieses Konto wurde gesperrt.");
 }
 function refreshData() {
   clearTimeout(window.refreshDelay);
@@ -294,6 +346,8 @@ $("#loginForm").addEventListener("submit", createProfile);
 $("#newChatButton").addEventListener("click", () => showView("people"));
 $("#createGroupButton").addEventListener("click", () => $("#groupDialog").showModal());
 $("#groupForm").addEventListener("submit", createGroup);
+$("#adminButton").addEventListener("click", () => openAdmin().catch((error) => toast(readableError(error))));
+$("#adminSearch").addEventListener("input", () => { clearTimeout(window.adminSearchDelay); window.adminSearchDelay = setTimeout(searchAdminUsers, 200); });
 $("#profileButton").addEventListener("click", openProfile);
 $("#profileForm").addEventListener("submit", saveProfile);
 $("#messageForm").addEventListener("submit", sendMessage);
