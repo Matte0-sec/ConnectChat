@@ -26,6 +26,7 @@ function readableError(error) {
   if (error?.message?.includes("Invalid login credentials")) return "Benutzername oder Passwort ist nicht korrekt.";
   if (error?.message?.includes("User already registered")) return "Dieser Benutzername ist bereits registriert.";
   if (error?.message?.includes("Email confirmation is enabled")) return "Deaktiviere in Supabase unter Authentication > Providers die E-Mail-Bestaetigung.";
+  if (error?.message?.includes("Failed to fetch")) return "Supabase ist nicht erreichbar. Pruefe die Projekt-URL und ob das Supabase-Projekt aktiv ist.";
   if (error?.message?.includes("Password should be at least")) return "Das Passwort muss mindestens 8 Zeichen lang sein.";
   if (error?.message?.includes("relation") || error?.code === "42P01") return "Supabase ist noch nicht eingerichtet. Fuehre zuerst supabase.sql im SQL Editor aus.";
   return error?.message || "Etwas ist schiefgelaufen.";
