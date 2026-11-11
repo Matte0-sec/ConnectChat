@@ -20,11 +20,11 @@
     </section>
     <section class="auth-panel">
       <form id="loginForm" class="auth-form">
-        <p class="eyebrow">DEIN PROFIL</p><h2>Wie heisst du?</h2>
-        <label>Benutzername<input id="loginUsername" autocomplete="nickname" required pattern="[A-Za-z0-9_. -]{3,30}" placeholder="z. B. Alex Meyer"></label>
-        <label>Status<input id="loginStatus" maxlength="120" placeholder="Bereit fuer neue Ideen"></label>
-        <button class="primary-button" type="submit">ConnectChat oeffnen <i data-lucide="arrow-right"></i></button>
-        <p class="form-switch">Waehle einen eindeutigen Namen fuer ConnectChat.</p>
+        <p id="authEyebrow" class="eyebrow">WILLKOMMEN ZURUECK</p><h2 id="authTitle">Anmelden</h2>
+        <label>Benutzername<input id="loginUsername" autocomplete="username" required pattern="[A-Za-z0-9_. -]{3,30}" placeholder="z. B. Alex Meyer"></label>
+        <label>Passwort<input id="loginPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="Mindestens 8 Zeichen"></label>
+        <button id="authSubmit" class="primary-button" type="submit">Anmelden <i data-lucide="arrow-right"></i></button>
+        <p id="authSwitch" class="form-switch">Noch kein Konto? <button id="showRegisterButton" type="button">Jetzt registrieren</button></p>
       </form>
     </section>
   </main>
@@ -39,7 +39,7 @@
         <button class="nav-item" data-view="groups"><i data-lucide="users-round"></i><span>Gruppen</span></button>
         <button id="adminButton" class="nav-item hidden"><i data-lucide="shield-check"></i><span>Verwaltung</span></button>
       </nav>
-      <div class="sidebar-bottom"><button id="profileButton" class="nav-item"><i data-lucide="settings-2"></i><span>Mein Profil</span></button><button id="logoutButton" class="nav-item"><i data-lucide="log-out"></i><span>Profil wechseln</span></button></div>
+      <div class="sidebar-bottom"><button id="profileButton" class="nav-item"><i data-lucide="settings-2"></i><span>Mein Profil</span></button><button id="logoutButton" class="nav-item"><i data-lucide="log-out"></i><span>Abmelden</span></button></div>
     </aside>
     <section class="content-column">
       <div id="chatsView" class="content-view"><header class="view-header"><div><p class="eyebrow">DEIN POSTEINGANG</p><h2>Nachrichten</h2></div><button id="newChatButton" class="icon-button accent" title="Neue Unterhaltung" aria-label="Neue Unterhaltung"><i data-lucide="square-pen"></i></button></header><div id="conversationList" class="conversation-list"></div></div>

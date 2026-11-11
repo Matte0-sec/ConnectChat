@@ -3,7 +3,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const SUPABASE_URL = "https://nlepbxthswfdqlpjjatg.supabase.co";
 const SUPABASE_KEY = "sb_publishable_vxz3JYjhD1GrlJNNUO63LA_iCoypa1z";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const state = { me: null, conversations: [], groups: [], active: null, channel: null };
+const state = { me: null, conversations: [], groups: [], active: null, channel: null, authMode: "login" };
 const $ = (selector) => document.querySelector(selector);
 const app = $("#appView");
 
@@ -15,13 +15,35 @@ function avatar(user, size = "") { return user.profileImage ? `<img class="avata
 function displayTime(value) { if (!value) return ""; const date = new Date(value); return date.toDateString() === new Date().toDateString() ? date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }); }
 function toast(message) { const element = $("#toast"); element.textContent = message; element.classList.add("visible"); clearTimeout(window.toastTimeout); window.toastTimeout = setTimeout(() => element.classList.remove("visible"), 3600); }
 function requireSuccess(result) { if (result.error) throw result.error; return result.data; }
+async function authEmailFromUsername(username) {
+  const normalizedName = username.trim().toLowerCase();
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalizedName));
+  const hash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `connectchat-${hash}@users.invalid`;
+}
 function readableError(error) {
   if (error?.code === "23505") return "Dieser Benutzername ist bereits vergeben.";
-  if (error?.message?.includes("Anonymous sign-ins")) return "Aktiviere in Supabase unter Authentication > Providers die Anonymous sign-ins.";
+  if (error?.message?.includes("Invalid login credentials")) return "Benutzername oder Passwort ist nicht korrekt.";
+  if (error?.message?.includes("User already registered")) return "Dieser Benutzername ist bereits registriert.";
+  if (error?.message?.includes("Email confirmation is enabled")) return "Deaktiviere in Supabase unter Authentication > Providers die E-Mail-Bestaetigung.";
+  if (error?.message?.includes("Password should be at least")) return "Das Passwort muss mindestens 8 Zeichen lang sein.";
   if (error?.message?.includes("relation") || error?.code === "42P01") return "Supabase ist noch nicht eingerichtet. Fuehre zuerst supabase.sql im SQL Editor aus.";
   return error?.message || "Etwas ist schiefgelaufen.";
 }
 
+function setAuthMode(mode) {
+  state.authMode = mode;
+  const isRegistering = mode === "register";
+  $("#loginPassword").autocomplete = isRegistering ? "new-password" : "current-password";
+  $("#authEyebrow").textContent = isRegistering ? "NEUES KONTO" : "WILLKOMMEN ZURUECK";
+  $("#authTitle").textContent = isRegistering ? "Registrieren" : "Anmelden";
+  $("#authSubmit").innerHTML = `${isRegistering ? "Konto erstellen" : "Anmelden"} <i data-lucide="arrow-right"></i>`;
+  $("#authSwitch").innerHTML = isRegistering
+    ? `Schon registriert? <button id="showLoginButton" type="button">Jetzt anmelden</button>`
+    : `Noch kein Konto? <button id="showRegisterButton" type="button">Jetzt registrieren</button>`;
+  $("#authSwitch").querySelector("button").addEventListener("click", () => setAuthMode(isRegistering ? "login" : "register"));
+  refreshIcons();
+}
 function showSetup() {
   state.channel?.unsubscribe();
   state.channel = null;
@@ -29,6 +51,7 @@ function showSetup() {
   state.active = null;
   app.classList.add("hidden");
   $("#authView").classList.remove("hidden");
+  setAuthMode("login");
   $("#loginUsername").focus();
 }
 function renderProfile() {
@@ -62,27 +85,24 @@ async function boot() {
   connectRealtime();
   refreshIcons();
 }
-async function createProfile(event) {
+async function authenticate(event) {
   event.preventDefault();
+  const password = $("#loginPassword").value;
   const username = $("#loginUsername").value.trim();
-  const status = $("#loginStatus").value.trim();
   if (!/^[A-Za-z0-9_. -]{3,30}$/.test(username)) return toast("Der Name muss 3 bis 30 Zeichen haben.");
   try {
-    let { data: { session }, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    if (!session) {
-      const signedIn = await supabase.auth.signInAnonymously();
-      if (signedIn.error) throw signedIn.error;
-      session = signedIn.data.session;
+    const email = await authEmailFromUsername(username);
+    if (state.authMode === "register") {
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { username } } });
+      if (error) throw error;
+      if (!data.session) {
+        throw new Error("Email confirmation is enabled");
+      }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
     }
-    if (!session) throw new Error("Anonyme Anmeldung konnte nicht gestartet werden.");
-    const row = requireSuccess(await supabase.from("profiles").insert({ id: session.user.id, username, status }).select("id,username,status,profile_image,role,is_blocked").single());
-    state.me = profileFromRow(row);
-    $("#authView").classList.add("hidden");
-    app.classList.remove("hidden");
-    renderProfile();
-    await loadConversations();
-    connectRealtime();
+    await boot();
   } catch (error) { toast(readableError(error)); }
 }
 
@@ -342,7 +362,7 @@ function refreshData() {
 }
 function applyTheme() { document.body.classList.toggle("dark", localStorage.getItem("connectchat-theme") === "dark"); }
 
-$("#loginForm").addEventListener("submit", createProfile);
+$("#loginForm").addEventListener("submit", authenticate);
 $("#newChatButton").addEventListener("click", () => showView("people"));
 $("#createGroupButton").addEventListener("click", () => $("#groupDialog").showModal());
 $("#groupForm").addEventListener("submit", createGroup);

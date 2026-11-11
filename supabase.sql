@@ -1,13 +1,29 @@
 -- Run this file once in Supabase: SQL Editor > New query > paste > Run.
--- Enable Authentication > Providers > Anonymous sign-ins before opening ConnectChat.
+-- Enable Authentication > Providers > Email before opening ConnectChat.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text not null unique check (char_length(username) between 3 and 30),
   status text not null default '' check (char_length(status) <= 120),
   profile_image text not null default '',
+  role text not null default 'user' check (role in ('user', 'site_admin')),
+  is_blocked boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (id, username)
+  values (new.id, trim(new.raw_user_meta_data ->> 'username'));
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
 create table if not exists public.chats (
   id uuid primary key default gen_random_uuid(),
@@ -150,8 +166,10 @@ end;
 $$;
 
 grant usage on schema public to anon, authenticated;
-grant select, insert, update, delete on public.profiles, public.chats, public.chat_members, public.messages, public.groups, public.group_members, public.join_requests to authenticated;
+grant select, update, delete on public.profiles, public.chats, public.chat_members, public.messages, public.groups, public.group_members, public.join_requests to authenticated;
 grant execute on function public.is_chat_member(uuid, uuid), public.is_group_member(uuid, uuid), public.is_group_admin(uuid, uuid), public.create_direct_chat(uuid), public.create_group(text, text, text), public.accept_join_request(uuid, boolean), public.manage_group_member(uuid, uuid, text) to authenticated;
+revoke update on public.profiles from authenticated;
+grant update (status, profile_image) on public.profiles to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.chats enable row level security;
@@ -162,7 +180,6 @@ alter table public.group_members enable row level security;
 alter table public.join_requests enable row level security;
 
 create policy "profiles are discoverable" on public.profiles for select to authenticated using (true);
-create policy "users create their profile" on public.profiles for insert to authenticated with check (id = auth.uid());
 create policy "users update their profile" on public.profiles for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 create policy "members see chats" on public.chats for select to authenticated using (public.is_chat_member(id, auth.uid()));
 create policy "members see chat members" on public.chat_members for select to authenticated using (public.is_chat_member(chat_id, auth.uid()));
